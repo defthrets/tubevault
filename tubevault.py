@@ -77,31 +77,11 @@ LOGO = r"""
                              "`         "YP'                    ^Y"   ^Y'                    "%
 """
 
-# Blue → Orange gradient that cycles (used for logo animation + static display)
+# Orange theme palette (single shade to avoid rainbow effect)
 LOGO_GRADIENT = [
-    "#3b1d00",
-    "#5a2600",
-    "#7a3000",
-    "#9a3a00",
-    "#b44a00",
-    "#cc5a00",
-    "#e06a00",
-    "#f07a00",
     "#ff8a00",
-    "#ff9a1a",
-    "#ffab33",
-    "#ffbc4d",
-    "#ffcc66",
-    "#ffbc4d",
-    "#ffab33",
-    "#ff9a1a",
-    "#ff8a00",
-    "#f07a00",
-    "#e06a00",
-    "#cc5a00",
-    "#b44a00",
-    "#9a3a00",
 ]
+
 _first_header = True
 
 DEFAULT_CFG: dict = {
@@ -303,7 +283,7 @@ def header() -> None:
     )
     console.print(
         Align.center(
-            "[dim #0099cc]YouTube · Odysee · Vimeo · Twitch · TikTok · Twitter/X · Rumble · 1000+ sites[/dim #0099cc]"
+            "[dim #ff8a00]YouTube · Odysee · Vimeo · Twitch · TikTok · Twitter/X · Rumble · 1000+ sites[/dim #ff8a00]"
         )
     )
     console.print()
@@ -311,10 +291,10 @@ def header() -> None:
 def rule(title: str = "") -> None:
     console.print(Rule(title, style="#7a3000 dim"))
 
-def ok(msg: str)   -> None: console.print(f"  [bold green]✔[/bold green]  {msg}")
-def err(msg: str)  -> None: console.print(f"  [bold red]✖[/bold red]  {msg}")
+def ok(msg: str)   -> None: console.print(f"  [bold orange1]✔[/bold orange1]  {msg}")
+def err(msg: str)  -> None: console.print(f"  [bold orange3]✖[/bold orange3]  {msg}")
 def info(msg: str) -> None: console.print(f"  [bold #ff8a00]ℹ[/bold #ff8a00]  {msg}")
-def warn(msg: str) -> None: console.print(f"  [bold yellow]⚠[/bold yellow]  {msg}")
+def warn(msg: str) -> None: console.print(f"  [bold orange3]⚠[/bold orange3]  {msg}")
 
 def pause() -> None:
     console.print()
@@ -382,7 +362,7 @@ def write_nfo(template: str, meta: dict, ctype: str, cfg: dict) -> None:
 def main_menu() -> str:
     header()
     t = Table(
-        show_header=False, box=box.SIMPLE, border_style="#003388 dim",
+        show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
         padding=(0, 3), show_edge=False,
     )
     t.add_column(style="bold orange1", no_wrap=True)
@@ -457,13 +437,13 @@ def show_info(info: dict) -> None:
         if dur_str:       t.add_row("Duration",  dur_str)
         if date_str:      t.add_row("Uploaded",  date_str)
         if view_count:    t.add_row("Views",      f"{view_count:,}")
-        console.print(Panel(t, title="[bold green]  VIDEO INFO  [/bold green]", border_style="green"))
+        console.print(Panel(t, title="[bold orange1]  VIDEO INFO  [/bold orange1]", border_style="orange3"))
 
 # ── Quality selection ─────────────────────────────────────────────────────────
 def quality_menu() -> tuple:
     """Returns (label, format_string, audio_only)."""
     t = Table(
-        show_header=False, box=box.SIMPLE, border_style="#003388 dim",
+        show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
         padding=(0, 2), show_edge=False,
     )
     t.add_column(style="bold orange1", no_wrap=True)
@@ -485,7 +465,7 @@ def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tupl
     is_pl    = (info or {}).get("_type") == "playlist"
 
     t = Table(
-        show_header=False, box=box.SIMPLE, border_style="#003388 dim",
+        show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
         padding=(0, 2), show_edge=False,
     )
     t.add_column(style="bold orange1", no_wrap=True)
@@ -765,7 +745,7 @@ def batch_flow(cfg: dict) -> None:
         console.print()
 
     rule()
-    ok(f"Batch complete: [bold green]{ok_count}[/bold green]/[bold]{len(urls)}[/bold] succeeded.")
+    ok(f"Batch complete: [bold orange1]{ok_count}[/bold orange1]/[bold]{len(urls)}[/bold] succeeded.")
     pause()
 
 # ── History ───────────────────────────────────────────────────────────────────
@@ -781,7 +761,7 @@ def history_view() -> None:
         return
 
     t = Table(
-        box=box.SIMPLE_HEAVY, border_style="#003388 dim",
+        box=box.SIMPLE_HEAVY, border_style="#7a3000 dim",
         header_style="bold #ff8a00", show_lines=False, padding=(0, 1),
     )
     t.add_column("#",       style="dim",         width=4,  justify="right")
@@ -793,7 +773,7 @@ def history_view() -> None:
 
     for i, h in enumerate(hist[:60], 1):
         date_str = h.get("date", "")[:19].replace("T", " ")
-        status   = "[bold green]✔ OK[/bold green]" if h.get("success") else "[bold red]✖ FAIL[/bold red]"
+        status   = "[bold orange1]✔ OK[/bold orange1]" if h.get("success") else "[bold orange3]✖ FAIL[/bold orange3]"
         title    = escape(h.get("title", "Unknown")[:44])
         t.add_row(str(i), date_str, title, h.get("type","?"), h.get("quality","?"), status)
 
@@ -801,7 +781,7 @@ def history_view() -> None:
     console.print(f"  [dim]Showing {min(len(hist), 60)} of {len(hist)} entries  ·  stored in {HIST_FILE}[/dim]")
     console.print()
 
-    if confirm("  [bold red]Clear all history?[/bold red]", default=False):
+    if confirm("  [bold orange3]Clear all history?[/bold orange3]", default=False):
         HIST_FILE.write_text("[]")
         ok("History cleared.")
         time.sleep(0.6)
@@ -815,7 +795,7 @@ def settings_menu() -> None:
         console.print()
 
         t = Table(
-            show_header=False, box=box.SIMPLE, border_style="#003388 dim",
+            show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
             padding=(0, 2), show_edge=False,
         )
         t.add_column(style="bold orange1", no_wrap=True, width=8)
@@ -826,11 +806,11 @@ def settings_menu() -> None:
         t.add_row("[ 2 ]", "Movies folder",     cfg["movies_dir"])
         t.add_row("[ 3 ]", "TV Shows folder",   cfg["tv_dir"])
         t.add_row("[ 4 ]", "YouTube folder",    cfg["youtube_dir"])
-        t.add_row("[ 5 ]", "Prefer MP4",          "[green]Yes[/green]" if cfg["prefer_mp4"]       else "[red]No[/red]")
-        t.add_row("[ 6 ]", "Embed subtitles",    "[green]Yes[/green]" if cfg["embed_subs"]        else "[red]No[/red]")
-        t.add_row("[ 7 ]", "Embed thumbnail",    "[green]Yes[/green]" if cfg["embed_thumbnail"]   else "[red]No[/red]")
-        t.add_row("[ 8 ]", "Write NFO / summary","[green]Yes[/green]" if cfg.get("write_nfo",True) else "[red]No[/red]")
-        t.add_row("[ 9 ]", "Embed metadata tags","[green]Yes[/green]" if cfg.get("embed_metadata",True) else "[red]No[/red]")
+        t.add_row("[ 5 ]", "Prefer MP4",          "[orange1]Yes[/orange1]" if cfg["prefer_mp4"]       else "[orange3]No[/orange3]")
+        t.add_row("[ 6 ]", "Embed subtitles",    "[orange1]Yes[/orange1]" if cfg["embed_subs"]        else "[orange3]No[/orange3]")
+        t.add_row("[ 7 ]", "Embed thumbnail",    "[orange1]Yes[/orange1]" if cfg["embed_thumbnail"]   else "[orange3]No[/orange3]")
+        t.add_row("[ 8 ]", "Write NFO / summary","[orange1]Yes[/orange1]" if cfg.get("write_nfo",True) else "[orange3]No[/orange3]")
+        t.add_row("[ 9 ]", "Embed metadata tags","[orange1]Yes[/orange1]" if cfg.get("embed_metadata",True) else "[orange3]No[/orange3]")
         t.add_row()
         t.add_row("[ B ]", "Back / Save",        "")
 
@@ -889,7 +869,7 @@ def show_sites() -> None:
 
     cols = 4
     rows = (len(POPULAR_SITES) + cols - 1) // cols
-    t = Table(show_header=False, box=box.SIMPLE, border_style="#003388 dim",
+    t = Table(show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
               padding=(0, 3), show_edge=False)
     for _ in range(cols):
         t.add_column(style="#ff8a00", no_wrap=True)
@@ -948,6 +928,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
 
 
 
