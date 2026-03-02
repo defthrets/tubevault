@@ -10,6 +10,8 @@ import json
 import re
 import time
 import signal
+import random
+import threading
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -48,6 +50,7 @@ from rich.progress import (
 )
 from rich.align import Align
 from rich.rule import Rule
+from rich.live import Live
 from rich import box
 from rich.markup import escape
 
@@ -60,12 +63,47 @@ CFG_FILE = APP_DIR / "config.json"
 HIST_FILE = APP_DIR / "history.json"
 
 LOGO = r"""
- ██╗   ██╗██╗██████╗  ██████╗ ██████╗  █████╗ ██████╗
- ██║   ██║██║██╔══██╗██╔════╝ ██╔══██╗██╔══██╗██╔══██╗
- ██║   ██║██║██║  ██║██║  ███╗██████╔╝███████║██████╔╝
- ╚██╗ ██╔╝██║██║  ██║██║   ██║██╔══██╗██╔══██║██╔══██╗
-  ╚████╔╝ ██║██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝
-   ╚═══╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝"""
+     s                         ..                    _                                          ..      s    
+    :8                   . uW8"                     u                                     x .d88"      :8    
+   .88       x.    .     `t888                     88Nu.   u.                 x.    .      5888R      .88    
+  :888ooo  .@88k  z88u    8888   .        .u      '88888.o888c       u      .@88k  z88u    '888R     :888ooo 
+-*8888888 ~"8888 ^8888    9888.z88N    ud8888.     ^8888  8888    us888u.  ~"8888 ^8888     888R   -*8888888 
+  8888      8888  888R    9888  888E :888'8888.     8888  8888 .@88 "8888"   8888  888R     888R     8888    
+  8888      8888  888R    9888  888E d888 '88%"     8888  8888 9888  9888    8888  888R     888R     8888    
+  8888      8888  888R    9888  888E 8888.+"        8888  8888 9888  9888    8888  888R     888R     8888    
+ .8888Lu=   8888 ,888B .  9888  888E 8888L         .8888b.888P 9888  9888    8888 ,888B .   888R    .8888Lu= 
+ ^%888*    "8888Y 8888"  .8888  888" '8888c. .+     ^Y8888*""  9888  9888   "8888Y 8888"   .888B .  ^%888*   
+   'Y"      `Y"   'YP     `%888*%"    "88888%         `Y"      "888*""888"   `Y"   'YP     ^*888%     'Y"    
+                             "`         "YP'                    ^Y"   ^Y'                    "%
+"""
+
+# Blue → Orange gradient that cycles (used for logo animation + static display)
+LOGO_GRADIENT = [
+    "#1040ff",  # deep blue
+    "#0060ee",
+    "#0080dd",
+    "#009ecc",
+    "#00b2bb",
+    "#00c499",
+    "#30cc66",
+    "#70be30",
+    "#aaa800",
+    "#d88800",
+    "#f86200",
+    "#ff3800",  # deep orange
+    "#ff5500",
+    "#f87000",
+    "#d89200",
+    "#aaaa00",
+    "#70be30",
+    "#30cc66",
+    "#00c499",
+    "#00b2bb",
+    "#009ecc",
+    "#0080dd",
+]
+
+_first_header = True
 
 DEFAULT_CFG: dict = {
     "plex_base":       "/mnt/plex",
@@ -75,6 +113,8 @@ DEFAULT_CFG: dict = {
     "prefer_mp4":      True,
     "embed_subs":      True,
     "embed_thumbnail": True,
+    "write_nfo":       True,   # Write .nfo file with description (Plex summary)
+    "embed_metadata":  True,   # Embed title/description/date into MP4 tags
 }
 
 QUALITIES: dict = {
@@ -150,9 +190,113 @@ def push_hist(entry: dict) -> None:
 def clr() -> None:
     os.system("clear")
 
+# ── Glitch logo animation ────────────────────────────────────────────────────
+GLITCH_CHARS = list("#$%&@*+=-:/\\|<>▓▒░█")
+GLITCH_CHANCE = 0.12  # chance per frame to glitch
+NOISE_RATE = 0.006    # per-char noise when glitching
+JITTER_MAX = 1        # horizontal jitter max
+SCANLINE_CHANCE = 0.05
+CHANNEL_SPLIT_CHANCE = 0.08
+COLOR_SHIFT_RATE = 10 # slow gradient drift
+LOGO_LINES = LOGO.splitlines()
+LOGO_HEIGHT = len(LOGO_LINES)
+_anim_thread: Optional[threading.Thread] = None
+_anim_stop = threading.Event()
+_anim_pause = threading.Event()
+_anim_lock = threading.Lock()
+
+def _glitch_logo_frame(frame: int) -> Text:
+    """Build a mostly-stable logo with occasional subtle glitches."""
+    rnd = random.Random(frame * 9176 + 1337)
+    text = Text()
+    n_grad = len(LOGO_GRADIENT)
+    is_glitch = rnd.random() < GLITCH_CHANCE
+    drift = frame // COLOR_SHIFT_RATE
+
+    for i, raw in enumerate(LOGO_LINES):
+        jitter = rnd.randint(-JITTER_MAX, JITTER_MAX) if is_glitch else 0
+        line = (" " * max(0, jitter)) + raw + (" " * max(0, -jitter))
+
+        scanline_dim = is_glitch and (rnd.random() < SCANLINE_CHANCE)
+        base_color = LOGO_GRADIENT[(i + drift) % n_grad]
+
+        for j, ch in enumerate(line):
+            if is_glitch and ch != " " and rnd.random() < NOISE_RATE:
+                ch = rnd.choice(GLITCH_CHARS)
+
+            if is_glitch and ch != " " and (rnd.random() < CHANNEL_SPLIT_CHANCE):
+                style = "bold red" if (j + frame) % 2 == 0 else "bold blue"
+            else:
+                style = base_color
+
+            if scanline_dim:
+                style = f"dim {style}"
+
+            text.append(ch, style=style)
+
+        text.append("\n")
+
+    return text
+
+def _draw_logo_frame(frame: int) -> None:
+    """Render the current frame at the top of the terminal without moving cursor."""
+    logo = _glitch_logo_frame(frame)
+    with console.capture() as cap:
+        console.print(logo, end="")
+    rendered = cap.get()
+    sys.stdout.write("\x1b7\x1b[H" + rendered + "\x1b8")
+    sys.stdout.flush()
+
+def _anim_loop() -> None:
+    frame = 0
+    while not _anim_stop.is_set():
+        if _anim_pause.is_set():
+            time.sleep(0.05)
+            continue
+        with _anim_lock:
+            _draw_logo_frame(frame)
+        frame += 1
+        time.sleep(1 / 12)
+
+def _start_anim() -> None:
+    global _anim_thread
+    if _anim_thread and _anim_thread.is_alive():
+        return
+    _anim_stop.clear()
+    _anim_pause.clear()
+    _anim_thread = threading.Thread(target=_anim_loop, daemon=True)
+    _anim_thread.start()
+
+def _pause_anim() -> None:
+    _anim_pause.set()
+
+def _resume_anim() -> None:
+    _anim_pause.clear()
+
+def ask(*args, **kwargs):
+    _pause_anim()
+    try:
+        return Prompt.ask(*args, **kwargs)
+    finally:
+        _resume_anim()
+
+def confirm(*args, **kwargs):
+    _pause_anim()
+    try:
+        return Confirm.ask(*args, **kwargs)
+    finally:
+        _resume_anim()
+
 def header() -> None:
+    global _first_header
     clr()
-    console.print(Text(LOGO, style="bold cyan"), justify="center")
+    if _first_header:
+        _first_header = False
+    _start_anim()
+    # Reserve space below the animated logo
+    console.print("\n" * (LOGO_HEIGHT + 1), end="")
+    console.print(Align.center("[dim]vibecoded by spitmux[/dim]"))
+    console.print()
     console.print(
         Align.center(
             f"[dim]Terminal Video Downloader for Plex  ·  v{VERSION}  ·  yt-dlp backend[/dim]"
@@ -160,35 +304,89 @@ def header() -> None:
     )
     console.print(
         Align.center(
-            "[dim cyan]YouTube · Odysee · Vimeo · Twitch · TikTok · Twitter/X · Rumble · 1000+ sites[/dim cyan]"
+            "[dim #0099cc]YouTube · Odysee · Vimeo · Twitch · TikTok · Twitter/X · Rumble · 1000+ sites[/dim #0099cc]"
         )
     )
     console.print()
 
 def rule(title: str = "") -> None:
-    console.print(Rule(title, style="cyan dim"))
+    console.print(Rule(title, style="#0044bb dim"))
 
 def ok(msg: str)   -> None: console.print(f"  [bold green]✔[/bold green]  {msg}")
 def err(msg: str)  -> None: console.print(f"  [bold red]✖[/bold red]  {msg}")
-def info(msg: str) -> None: console.print(f"  [bold cyan]ℹ[/bold cyan]  {msg}")
+def info(msg: str) -> None: console.print(f"  [bold #0099ff]ℹ[/bold #0099ff]  {msg}")
 def warn(msg: str) -> None: console.print(f"  [bold yellow]⚠[/bold yellow]  {msg}")
 
 def pause() -> None:
     console.print()
-    Prompt.ask("[dim]  Press Enter to continue[/dim]", default="", show_default=False)
+    ask("[dim]  Press Enter to continue[/dim]", default="", show_default=False)
 
 def safe_name(s: str) -> str:
     """Strip characters illegal in Linux filenames."""
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', s).strip()
 
+def _xml_escape(s: str) -> str:
+    """Escape special characters for XML."""
+    return (s.replace("&", "&amp;")
+             .replace("<", "&lt;")
+             .replace(">", "&gt;")
+             .replace('"', "&quot;"))
+
+def write_nfo(template: str, meta: dict, ctype: str, cfg: dict) -> None:
+    """Write a Plex-compatible .nfo file so the description appears as the summary."""
+    if not cfg.get("write_nfo", True):
+        return
+
+    title       = str(meta.get("title")    or meta.get("id") or "Unknown")
+    description = str(meta.get("description") or "")
+    uploader    = str(meta.get("uploader") or meta.get("channel") or "")
+    upload_date = str(meta.get("upload_date") or "")
+    year        = upload_date[:4] if len(upload_date) >= 4 else ""
+
+    # Resolve %(title)s then any remaining yt-dlp tokens, then swap extension → .nfo
+    resolved = template.replace("%(title)s", safe_name(title))
+    resolved = re.sub(r'%\([^)]+\)s', 'Unknown', resolved)
+    nfo_path = re.sub(r'\.[^./]+$', '.nfo', resolved)
+
+    t  = _xml_escape(title)
+    d  = _xml_escape(description[:4000])
+    u  = _xml_escape(uploader)
+    yr = f"  <year>{year}</year>\n" if year else ""
+
+    if ctype == "TV Show":
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            '<episodedetails>\n'
+            f'  <title>{t}</title>\n'
+            f'  <plot>{d}</plot>\n'
+            f'{yr}'
+            '</episodedetails>'
+        )
+    else:  # Movie or YouTube / General
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            '<movie>\n'
+            f'  <title>{t}</title>\n'
+            f'  <plot>{d}</plot>\n'
+            f'  <studio>{u}</studio>\n'
+            f'{yr}'
+            '</movie>'
+        )
+
+    try:
+        Path(nfo_path).write_text(xml, encoding="utf-8")
+        ok(f"NFO saved  →  [dim]{nfo_path}[/dim]")
+    except Exception as e:
+        warn(f"Could not write NFO: {e}")
+
 # ── Main menu ─────────────────────────────────────────────────────────────────
 def main_menu() -> str:
     header()
     t = Table(
-        show_header=False, box=box.SIMPLE, border_style="cyan dim",
+        show_header=False, box=box.SIMPLE, border_style="#003388 dim",
         padding=(0, 3), show_edge=False,
     )
-    t.add_column(style="bold yellow", no_wrap=True)
+    t.add_column(style="bold orange1", no_wrap=True)
     t.add_column(style="white")
     t.add_row("[ 1 ]", "Download Video or Playlist")
     t.add_row("[ 2 ]", "Batch Download  (from URL list file)")
@@ -200,12 +398,12 @@ def main_menu() -> str:
 
     console.print(Panel(
         Align.center(t),
-        title="[bold cyan]  MAIN MENU  [/bold cyan]",
-        border_style="cyan",
+        title="[bold #0099ff]  MAIN MENU  [/bold #0099ff]",
+        border_style="#0066cc",
         padding=(1, 6),
     ))
     console.print()
-    return Prompt.ask("  [bold cyan]Select[/bold cyan]", default="Q").strip().upper()
+    return ask("  [bold #0099ff]Select[/bold #0099ff]", default="Q").strip().upper()
 
 # ── Video info ────────────────────────────────────────────────────────────────
 def get_info(url: str) -> Optional[dict]:
@@ -226,12 +424,12 @@ def show_info(info: dict) -> None:
         title    = info.get("title", "Unknown Playlist")
         uploader = info.get("uploader") or info.get("channel", "Unknown")
         t = Table(show_header=False, box=box.SIMPLE, border_style="dim", padding=(0, 1))
-        t.add_column(style="bold cyan", no_wrap=True, width=14)
+        t.add_column(style="bold #0099ff", no_wrap=True, width=14)
         t.add_column(style="white")
         t.add_row("Playlist",  escape(title[:80]))
         t.add_row("Channel",   escape(str(uploader)))
         t.add_row("Videos",    str(len(entries)))
-        console.print(Panel(t, title="[bold yellow]  PLAYLIST  [/bold yellow]", border_style="yellow"))
+        console.print(Panel(t, title="[bold orange1]  PLAYLIST  [/bold orange1]", border_style="orange1"))
     else:
         title      = info.get("title", "Unknown")
         uploader   = info.get("uploader") or info.get("channel", "Unknown")
@@ -253,7 +451,7 @@ def show_info(info: dict) -> None:
                 pass
 
         t = Table(show_header=False, box=box.SIMPLE, border_style="dim", padding=(0, 1))
-        t.add_column(style="bold cyan", no_wrap=True, width=14)
+        t.add_column(style="bold #0099ff", no_wrap=True, width=14)
         t.add_column(style="white")
         t.add_row("Title",    escape(str(title)[:80]))
         t.add_row("Uploader", escape(str(uploader)))
@@ -266,19 +464,19 @@ def show_info(info: dict) -> None:
 def quality_menu() -> tuple:
     """Returns (label, format_string, audio_only)."""
     t = Table(
-        show_header=False, box=box.SIMPLE, border_style="cyan dim",
+        show_header=False, box=box.SIMPLE, border_style="#003388 dim",
         padding=(0, 2), show_edge=False,
     )
-    t.add_column(style="bold yellow", no_wrap=True)
+    t.add_column(style="bold orange1", no_wrap=True)
     t.add_column(style="white")
     for k, (label, _, _) in QUALITIES.items():
         t.add_row(f"[ {k} ]", label)
     console.print(Panel(
-        t, title="[bold cyan]  SELECT QUALITY  [/bold cyan]",
-        border_style="cyan", padding=(0, 4),
+        t, title="[bold #0099ff]  SELECT QUALITY  [/bold #0099ff]",
+        border_style="#0066cc", padding=(0, 4),
     ))
     console.print()
-    ch = Prompt.ask("  [bold cyan]Quality[/bold cyan]", default="3").strip()
+    ch = ask("  [bold #0099ff]Quality[/bold #0099ff]", default="3").strip()
     return QUALITIES.get(ch, QUALITIES["3"])
 
 # ── Output path builder ───────────────────────────────────────────────────────
@@ -288,24 +486,24 @@ def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tupl
     is_pl    = (info or {}).get("_type") == "playlist"
 
     t = Table(
-        show_header=False, box=box.SIMPLE, border_style="cyan dim",
+        show_header=False, box=box.SIMPLE, border_style="#003388 dim",
         padding=(0, 2), show_edge=False,
     )
-    t.add_column(style="bold yellow", no_wrap=True)
+    t.add_column(style="bold orange1", no_wrap=True)
     t.add_column(style="white")
     for k, v in CONTENT_TYPES.items():
         t.add_row(f"[ {k} ]", v)
     console.print(Panel(
-        t, title="[bold cyan]  CONTENT TYPE  [/bold cyan]",
-        border_style="cyan", padding=(0, 4),
+        t, title="[bold #0099ff]  CONTENT TYPE  [/bold #0099ff]",
+        border_style="#0066cc", padding=(0, 4),
     ))
     console.print()
-    ct = Prompt.ask("  [bold cyan]Type[/bold cyan]", default="3").strip()
+    ct = ask("  [bold #0099ff]Type[/bold #0099ff]", default="3").strip()
     ctype = CONTENT_TYPES.get(ct, "YouTube / General")
 
     if ctype == "Movie":
-        movie_title = Prompt.ask("  [bold cyan]Movie name[/bold cyan]")
-        year        = Prompt.ask("  [bold cyan]Year[/bold cyan]", default="")
+        movie_title = ask("  [bold #0099ff]Movie name[/bold #0099ff]")
+        year        = ask("  [bold #0099ff]Year[/bold #0099ff]", default="")
         s = safe_name(movie_title)
         folder = f"{s} ({year})" if year else s
         out_dir = base / cfg["movies_dir"] / folder
@@ -313,9 +511,9 @@ def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tupl
         template = str(out_dir / f"{folder}.%(ext)s")
 
     elif ctype == "TV Show":
-        show   = Prompt.ask("  [bold cyan]Show name[/bold cyan]")
-        season = Prompt.ask("  [bold cyan]Season number[/bold cyan]", default="1")
-        ep_num = Prompt.ask("  [bold cyan]Starting episode number[/bold cyan]", default="1")
+        show   = ask("  [bold #0099ff]Show name[/bold #0099ff]")
+        season = ask("  [bold #0099ff]Season number[/bold #0099ff]", default="1")
+        ep_num = ask("  [bold #0099ff]Starting episode number[/bold #0099ff]", default="1")
         s      = safe_name(show)
         sn     = int(season)
         en     = int(ep_num)
@@ -346,9 +544,9 @@ class RichProgressHook:
 
     def __init__(self):
         self._prog = Progress(
-            SpinnerColumn(style="cyan"),
-            TextColumn("[bold cyan]{task.description}[/]", no_wrap=True, table_column=None),
-            BarColumn(bar_width=38, style="dim cyan", complete_style="bold green"),
+            SpinnerColumn(style="#0099ff"),
+            TextColumn("[bold #0099ff]{task.description}[/]"),
+            BarColumn(bar_width=38, style="dim #0044bb", complete_style="bold orange1"),
             "[progress.percentage]{task.percentage:>3.0f}%",
             "·",
             DownloadColumn(),
@@ -404,6 +602,8 @@ def do_download(url: str, cfg: dict, fmt: str, template: str,
             "preferredcodec": "mp3",
             "preferredquality": "192",
         })
+    if cfg.get("embed_metadata", True):
+        postprocessors.append({"key": "FFmpegMetadata", "add_metadata": True})
     if cfg.get("embed_subs") and not audio_only:
         postprocessors.append({"key": "FFmpegEmbedSubtitle"})
     if cfg.get("embed_thumbnail"):
@@ -444,14 +644,14 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
     console.print()
 
     if not url:
-        url = Prompt.ask("  [bold cyan]Enter URL[/bold cyan]").strip()
+        url = ask("  [bold #0099ff]Enter URL[/bold #0099ff]").strip()
     if not url:
         warn("No URL provided.")
         pause()
         return
 
     console.print()
-    with console.status("[cyan]Fetching video information...[/cyan]", spinner="dots"):
+    with console.status("[#0099ff]Fetching video information...[/#0099ff]", spinner="dots"):
         meta = get_info(url)
     if not meta:
         pause()
@@ -469,7 +669,7 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
 
     # Confirmation panel
     ct = Table(show_header=False, box=box.SIMPLE, border_style="dim", padding=(0, 1))
-    ct.add_column(style="bold cyan", width=14)
+    ct.add_column(style="bold #0099ff", width=14)
     ct.add_column(style="white")
     ct.add_row("Quality",  ql)
     ct.add_row("Type",     ctype)
@@ -478,7 +678,7 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
                         border_style="white", padding=(0, 2)))
     console.print()
 
-    if not Confirm.ask("  [bold cyan]Start download?[/bold cyan]", default=True):
+    if not confirm("  [bold #0099ff]Start download?[/bold #0099ff]", default=True):
         warn("Cancelled.")
         pause()
         return
@@ -496,6 +696,7 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
 
     if success:
         ok(f"Complete!  ({elapsed}s)  →  [dim]{Path(template).parent}[/dim]")
+        write_nfo(template, meta, ctype, cfg)
     else:
         err("Download failed.")
 
@@ -518,7 +719,7 @@ def batch_flow(cfg: dict) -> None:
     info("Provide a text file with one URL per line. Lines starting with # are ignored.")
     console.print()
 
-    filepath = Prompt.ask("  [bold cyan]URL list file[/bold cyan]").strip()
+    filepath = ask("  [bold #0099ff]URL list file[/bold #0099ff]").strip()
     fp = Path(filepath)
     if not fp.exists():
         err(f"File not found: {fp}")
@@ -545,7 +746,7 @@ def batch_flow(cfg: dict) -> None:
     template, ctype = build_output_path(cfg, None, audio_only)
     console.print()
 
-    if not Confirm.ask(f"  [bold cyan]Download {len(urls)} video(s)?[/bold cyan]", default=True):
+    if not confirm(f"  [bold #0099ff]Download {len(urls)} video(s)?[/bold #0099ff]", default=True):
         warn("Cancelled.")
         pause()
         return
@@ -581,14 +782,14 @@ def history_view() -> None:
         return
 
     t = Table(
-        box=box.SIMPLE_HEAVY, border_style="cyan dim",
-        header_style="bold cyan", show_lines=False, padding=(0, 1),
+        box=box.SIMPLE_HEAVY, border_style="#003388 dim",
+        header_style="bold #0099ff", show_lines=False, padding=(0, 1),
     )
     t.add_column("#",       style="dim",         width=4,  justify="right")
     t.add_column("Date",    style="dim white",   width=19, no_wrap=True)
     t.add_column("Title",   style="white",       max_width=44)
-    t.add_column("Type",    style="cyan",         width=13)
-    t.add_column("Quality", style="yellow",       width=16)
+    t.add_column("Type",    style="#0099ff",      width=13)
+    t.add_column("Quality", style="orange1",      width=16)
     t.add_column("Status",  justify="center",     width=8)
 
     for i, h in enumerate(hist[:60], 1):
@@ -601,7 +802,7 @@ def history_view() -> None:
     console.print(f"  [dim]Showing {min(len(hist), 60)} of {len(hist)} entries  ·  stored in {HIST_FILE}[/dim]")
     console.print()
 
-    if Confirm.ask("  [bold red]Clear all history?[/bold red]", default=False):
+    if confirm("  [bold red]Clear all history?[/bold red]", default=False):
         HIST_FILE.write_text("[]")
         ok("History cleared.")
         time.sleep(0.6)
@@ -615,36 +816,40 @@ def settings_menu() -> None:
         console.print()
 
         t = Table(
-            show_header=False, box=box.SIMPLE, border_style="cyan dim",
+            show_header=False, box=box.SIMPLE, border_style="#003388 dim",
             padding=(0, 2), show_edge=False,
         )
-        t.add_column(style="bold yellow", no_wrap=True, width=8)
-        t.add_column(style="cyan",        width=22)
+        t.add_column(style="bold orange1", no_wrap=True, width=8)
+        t.add_column(style="#0099ff",      width=22)
         t.add_column(style="white")
 
         t.add_row("[ 1 ]", "Plex base path",    cfg["plex_base"])
         t.add_row("[ 2 ]", "Movies folder",     cfg["movies_dir"])
         t.add_row("[ 3 ]", "TV Shows folder",   cfg["tv_dir"])
         t.add_row("[ 4 ]", "YouTube folder",    cfg["youtube_dir"])
-        t.add_row("[ 5 ]", "Prefer MP4",        "[green]Yes[/green]" if cfg["prefer_mp4"]      else "[red]No[/red]")
-        t.add_row("[ 6 ]", "Embed subtitles",   "[green]Yes[/green]" if cfg["embed_subs"]       else "[red]No[/red]")
-        t.add_row("[ 7 ]", "Embed thumbnail",   "[green]Yes[/green]" if cfg["embed_thumbnail"]  else "[red]No[/red]")
+        t.add_row("[ 5 ]", "Prefer MP4",          "[green]Yes[/green]" if cfg["prefer_mp4"]       else "[red]No[/red]")
+        t.add_row("[ 6 ]", "Embed subtitles",    "[green]Yes[/green]" if cfg["embed_subs"]        else "[red]No[/red]")
+        t.add_row("[ 7 ]", "Embed thumbnail",    "[green]Yes[/green]" if cfg["embed_thumbnail"]   else "[red]No[/red]")
+        t.add_row("[ 8 ]", "Write NFO / summary","[green]Yes[/green]" if cfg.get("write_nfo",True) else "[red]No[/red]")
+        t.add_row("[ 9 ]", "Embed metadata tags","[green]Yes[/green]" if cfg.get("embed_metadata",True) else "[red]No[/red]")
         t.add_row()
-        t.add_row("[ B ]", "Back / Save",       "")
+        t.add_row("[ B ]", "Back / Save",        "")
 
-        console.print(Panel(t, title="[bold cyan]  CONFIGURATION  [/bold cyan]",
-                            border_style="cyan", padding=(1, 2)))
+        console.print(Panel(t, title="[bold #0099ff]  CONFIGURATION  [/bold #0099ff]",
+                            border_style="#0066cc", padding=(1, 2)))
         console.print()
 
-        ch = Prompt.ask("  [bold cyan]Select[/bold cyan]", default="B").strip().upper()
+        ch = ask("  [bold #0099ff]Select[/bold #0099ff]", default="B").strip().upper()
 
-        if   ch == "1": cfg["plex_base"]       = Prompt.ask("  Plex base path",    default=cfg["plex_base"])
-        elif ch == "2": cfg["movies_dir"]       = Prompt.ask("  Movies folder",     default=cfg["movies_dir"])
-        elif ch == "3": cfg["tv_dir"]           = Prompt.ask("  TV Shows folder",   default=cfg["tv_dir"])
-        elif ch == "4": cfg["youtube_dir"]      = Prompt.ask("  YouTube folder",    default=cfg["youtube_dir"])
-        elif ch == "5": cfg["prefer_mp4"]       = Confirm.ask("  Prefer MP4?",      default=cfg["prefer_mp4"])
-        elif ch == "6": cfg["embed_subs"]       = Confirm.ask("  Embed subtitles?", default=cfg["embed_subs"])
-        elif ch == "7": cfg["embed_thumbnail"]  = Confirm.ask("  Embed thumbnail?", default=cfg["embed_thumbnail"])
+        if   ch == "1": cfg["plex_base"]       = ask("  Plex base path",    default=cfg["plex_base"])
+        elif ch == "2": cfg["movies_dir"]       = ask("  Movies folder",     default=cfg["movies_dir"])
+        elif ch == "3": cfg["tv_dir"]           = ask("  TV Shows folder",   default=cfg["tv_dir"])
+        elif ch == "4": cfg["youtube_dir"]      = ask("  YouTube folder",    default=cfg["youtube_dir"])
+        elif ch == "5": cfg["prefer_mp4"]       = confirm("  Prefer MP4?",      default=cfg["prefer_mp4"])
+        elif ch == "6": cfg["embed_subs"]       = confirm("  Embed subtitles?", default=cfg["embed_subs"])
+        elif ch == "7": cfg["embed_thumbnail"]  = confirm("  Embed thumbnail?",       default=cfg["embed_thumbnail"])
+        elif ch == "8": cfg["write_nfo"]        = confirm("  Write NFO / summary?",   default=cfg.get("write_nfo", True))
+        elif ch == "9": cfg["embed_metadata"]   = confirm("  Embed metadata in file?", default=cfg.get("embed_metadata", True))
         elif ch == "B":
             save_cfg(cfg)
             ok("Settings saved.")
@@ -659,7 +864,7 @@ def update_ytdlp() -> None:
     header()
     rule("  UPDATE yt-dlp  ")
     console.print()
-    with console.status("[cyan]Updating yt-dlp via pip...[/cyan]", spinner="dots"):
+    with console.status("[#0099ff]Updating yt-dlp via pip...[/#0099ff]", spinner="dots"):
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", "yt-dlp"],
             capture_output=True, text=True,
@@ -685,10 +890,10 @@ def show_sites() -> None:
 
     cols = 4
     rows = (len(POPULAR_SITES) + cols - 1) // cols
-    t = Table(show_header=False, box=box.SIMPLE, border_style="cyan dim",
+    t = Table(show_header=False, box=box.SIMPLE, border_style="#003388 dim",
               padding=(0, 3), show_edge=False)
     for _ in range(cols):
-        t.add_column(style="cyan", no_wrap=True)
+        t.add_column(style="#0099ff", no_wrap=True)
 
     for r in range(rows):
         row_items = []
@@ -703,12 +908,12 @@ def show_sites() -> None:
 
     console.print(t)
     console.print()
-    info("yt-dlp supports 1000+ sites. Full list: [cyan]yt-dlp --list-extractors[/cyan]")
+    info("yt-dlp supports 1000+ sites. Full list: [#0099ff]yt-dlp --list-extractors[/#0099ff]")
     pause()
 
 # ── Signal handler ────────────────────────────────────────────────────────────
 def _sig_handler(sig, frame) -> None:
-    console.print("\n\n  [bold yellow]Interrupted. Goodbye![/bold yellow]\n")
+    console.print("\n\n  [bold orange1]Interrupted. Goodbye![/bold orange1]\n")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, _sig_handler)
@@ -738,9 +943,13 @@ def main() -> None:
         elif choice == "6": show_sites()
         elif choice in ("Q", "QUIT", "EXIT"):
             header()
-            console.print(Align.center("[bold cyan]Thanks for using VidGrab!  Goodbye.[/bold cyan]"))
+            console.print(Align.center("[bold orange1]Thanks for using VidGrab!  Goodbye.[/bold orange1]"))
             console.print()
             sys.exit(0)
 
 if __name__ == "__main__":
     main()
+
+
+
+
