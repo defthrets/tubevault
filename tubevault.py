@@ -79,30 +79,29 @@ LOGO = r"""
 
 # Blue → Orange gradient that cycles (used for logo animation + static display)
 LOGO_GRADIENT = [
-    "#1040ff",  # deep blue
-    "#0060ee",
-    "#0080dd",
-    "#009ecc",
-    "#00b2bb",
-    "#00c499",
-    "#30cc66",
-    "#70be30",
-    "#aaa800",
-    "#d88800",
-    "#f86200",
-    "#ff3800",  # deep orange
-    "#ff5500",
-    "#f87000",
-    "#d89200",
-    "#aaaa00",
-    "#70be30",
-    "#30cc66",
-    "#00c499",
-    "#00b2bb",
-    "#009ecc",
-    "#0080dd",
+    "#3b1d00",
+    "#5a2600",
+    "#7a3000",
+    "#9a3a00",
+    "#b44a00",
+    "#cc5a00",
+    "#e06a00",
+    "#f07a00",
+    "#ff8a00",
+    "#ff9a1a",
+    "#ffab33",
+    "#ffbc4d",
+    "#ffcc66",
+    "#ffbc4d",
+    "#ffab33",
+    "#ff9a1a",
+    "#ff8a00",
+    "#f07a00",
+    "#e06a00",
+    "#cc5a00",
+    "#b44a00",
+    "#9a3a00",
 ]
-
 _first_header = True
 
 DEFAULT_CFG: dict = {
@@ -225,7 +224,7 @@ def _glitch_logo_frame(frame: int) -> Text:
                 ch = rnd.choice(GLITCH_CHARS)
 
             if is_glitch and ch != " " and (rnd.random() < CHANNEL_SPLIT_CHANCE):
-                style = "bold red" if (j + frame) % 2 == 0 else "bold blue"
+                style = "bold orange1" if (j + frame) % 2 == 0 else "orange3"
             else:
                 style = base_color
 
@@ -949,6 +948,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
