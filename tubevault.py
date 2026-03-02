@@ -309,11 +309,11 @@ def header() -> None:
     console.print()
 
 def rule(title: str = "") -> None:
-    console.print(Rule(title, style="#0044bb dim"))
+    console.print(Rule(title, style="#7a3000 dim"))
 
 def ok(msg: str)   -> None: console.print(f"  [bold green]✔[/bold green]  {msg}")
 def err(msg: str)  -> None: console.print(f"  [bold red]✖[/bold red]  {msg}")
-def info(msg: str) -> None: console.print(f"  [bold #0099ff]ℹ[/bold #0099ff]  {msg}")
+def info(msg: str) -> None: console.print(f"  [bold #ff8a00]ℹ[/bold #ff8a00]  {msg}")
 def warn(msg: str) -> None: console.print(f"  [bold yellow]⚠[/bold yellow]  {msg}")
 
 def pause() -> None:
@@ -397,12 +397,12 @@ def main_menu() -> str:
 
     console.print(Panel(
         Align.center(t),
-        title="[bold #0099ff]  MAIN MENU  [/bold #0099ff]",
-        border_style="#0066cc",
+        title="[bold #ff8a00]  MAIN MENU  [/bold #ff8a00]",
+        border_style="#cc5a00",
         padding=(1, 6),
     ))
     console.print()
-    return ask("  [bold #0099ff]Select[/bold #0099ff]", default="Q").strip().upper()
+    return ask("  [bold #ff8a00]Select[/bold #ff8a00]", default="Q").strip().upper()
 
 # ── Video info ────────────────────────────────────────────────────────────────
 def get_info(url: str) -> Optional[dict]:
@@ -423,7 +423,7 @@ def show_info(info: dict) -> None:
         title    = info.get("title", "Unknown Playlist")
         uploader = info.get("uploader") or info.get("channel", "Unknown")
         t = Table(show_header=False, box=box.SIMPLE, border_style="dim", padding=(0, 1))
-        t.add_column(style="bold #0099ff", no_wrap=True, width=14)
+        t.add_column(style="bold #ff8a00", no_wrap=True, width=14)
         t.add_column(style="white")
         t.add_row("Playlist",  escape(title[:80]))
         t.add_row("Channel",   escape(str(uploader)))
@@ -450,7 +450,7 @@ def show_info(info: dict) -> None:
                 pass
 
         t = Table(show_header=False, box=box.SIMPLE, border_style="dim", padding=(0, 1))
-        t.add_column(style="bold #0099ff", no_wrap=True, width=14)
+        t.add_column(style="bold #ff8a00", no_wrap=True, width=14)
         t.add_column(style="white")
         t.add_row("Title",    escape(str(title)[:80]))
         t.add_row("Uploader", escape(str(uploader)))
@@ -471,11 +471,11 @@ def quality_menu() -> tuple:
     for k, (label, _, _) in QUALITIES.items():
         t.add_row(f"[ {k} ]", label)
     console.print(Panel(
-        t, title="[bold #0099ff]  SELECT QUALITY  [/bold #0099ff]",
-        border_style="#0066cc", padding=(0, 4),
+        t, title="[bold #ff8a00]  SELECT QUALITY  [/bold #ff8a00]",
+        border_style="#cc5a00", padding=(0, 4),
     ))
     console.print()
-    ch = ask("  [bold #0099ff]Quality[/bold #0099ff]", default="3").strip()
+    ch = ask("  [bold #ff8a00]Quality[/bold #ff8a00]", default="3").strip()
     return QUALITIES.get(ch, QUALITIES["3"])
 
 # ── Output path builder ───────────────────────────────────────────────────────
@@ -493,16 +493,16 @@ def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tupl
     for k, v in CONTENT_TYPES.items():
         t.add_row(f"[ {k} ]", v)
     console.print(Panel(
-        t, title="[bold #0099ff]  CONTENT TYPE  [/bold #0099ff]",
-        border_style="#0066cc", padding=(0, 4),
+        t, title="[bold #ff8a00]  CONTENT TYPE  [/bold #ff8a00]",
+        border_style="#cc5a00", padding=(0, 4),
     ))
     console.print()
-    ct = ask("  [bold #0099ff]Type[/bold #0099ff]", default="3").strip()
+    ct = ask("  [bold #ff8a00]Type[/bold #ff8a00]", default="3").strip()
     ctype = CONTENT_TYPES.get(ct, "YouTube / General")
 
     if ctype == "Movie":
-        movie_title = ask("  [bold #0099ff]Movie name[/bold #0099ff]")
-        year        = ask("  [bold #0099ff]Year[/bold #0099ff]", default="")
+        movie_title = ask("  [bold #ff8a00]Movie name[/bold #ff8a00]")
+        year        = ask("  [bold #ff8a00]Year[/bold #ff8a00]", default="")
         s = safe_name(movie_title)
         folder = f"{s} ({year})" if year else s
         out_dir = base / cfg["movies_dir"] / folder
@@ -510,9 +510,9 @@ def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tupl
         template = str(out_dir / f"{folder}.%(ext)s")
 
     elif ctype == "TV Show":
-        show   = ask("  [bold #0099ff]Show name[/bold #0099ff]")
-        season = ask("  [bold #0099ff]Season number[/bold #0099ff]", default="1")
-        ep_num = ask("  [bold #0099ff]Starting episode number[/bold #0099ff]", default="1")
+        show   = ask("  [bold #ff8a00]Show name[/bold #ff8a00]")
+        season = ask("  [bold #ff8a00]Season number[/bold #ff8a00]", default="1")
+        ep_num = ask("  [bold #ff8a00]Starting episode number[/bold #ff8a00]", default="1")
         s      = safe_name(show)
         sn     = int(season)
         en     = int(ep_num)
@@ -543,9 +543,9 @@ class RichProgressHook:
 
     def __init__(self):
         self._prog = Progress(
-            SpinnerColumn(style="#0099ff"),
-            TextColumn("[bold #0099ff]{task.description}[/]"),
-            BarColumn(bar_width=38, style="dim #0044bb", complete_style="bold orange1"),
+            SpinnerColumn(style="#ff8a00"),
+            TextColumn("[bold #ff8a00]{task.description}[/]"),
+            BarColumn(bar_width=38, style="dim #7a3000", complete_style="bold orange1"),
             "[progress.percentage]{task.percentage:>3.0f}%",
             "·",
             DownloadColumn(),
@@ -643,14 +643,14 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
     console.print()
 
     if not url:
-        url = ask("  [bold #0099ff]Enter URL[/bold #0099ff]").strip()
+        url = ask("  [bold #ff8a00]Enter URL[/bold #ff8a00]").strip()
     if not url:
         warn("No URL provided.")
         pause()
         return
 
     console.print()
-    with console.status("[#0099ff]Fetching video information...[/#0099ff]", spinner="dots"):
+    with console.status("[#ff8a00]Fetching video information...[/#ff8a00]", spinner="dots"):
         meta = get_info(url)
     if not meta:
         pause()
@@ -668,7 +668,7 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
 
     # Confirmation panel
     ct = Table(show_header=False, box=box.SIMPLE, border_style="dim", padding=(0, 1))
-    ct.add_column(style="bold #0099ff", width=14)
+    ct.add_column(style="bold #ff8a00", width=14)
     ct.add_column(style="white")
     ct.add_row("Quality",  ql)
     ct.add_row("Type",     ctype)
@@ -677,7 +677,7 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
                         border_style="white", padding=(0, 2)))
     console.print()
 
-    if not confirm("  [bold #0099ff]Start download?[/bold #0099ff]", default=True):
+    if not confirm("  [bold #ff8a00]Start download?[/bold #ff8a00]", default=True):
         warn("Cancelled.")
         pause()
         return
@@ -718,7 +718,7 @@ def batch_flow(cfg: dict) -> None:
     info("Provide a text file with one URL per line. Lines starting with # are ignored.")
     console.print()
 
-    filepath = ask("  [bold #0099ff]URL list file[/bold #0099ff]").strip()
+    filepath = ask("  [bold #ff8a00]URL list file[/bold #ff8a00]").strip()
     fp = Path(filepath)
     if not fp.exists():
         err(f"File not found: {fp}")
@@ -745,7 +745,7 @@ def batch_flow(cfg: dict) -> None:
     template, ctype = build_output_path(cfg, None, audio_only)
     console.print()
 
-    if not confirm(f"  [bold #0099ff]Download {len(urls)} video(s)?[/bold #0099ff]", default=True):
+    if not confirm(f"  [bold #ff8a00]Download {len(urls)} video(s)?[/bold #ff8a00]", default=True):
         warn("Cancelled.")
         pause()
         return
@@ -782,12 +782,12 @@ def history_view() -> None:
 
     t = Table(
         box=box.SIMPLE_HEAVY, border_style="#003388 dim",
-        header_style="bold #0099ff", show_lines=False, padding=(0, 1),
+        header_style="bold #ff8a00", show_lines=False, padding=(0, 1),
     )
     t.add_column("#",       style="dim",         width=4,  justify="right")
     t.add_column("Date",    style="dim white",   width=19, no_wrap=True)
     t.add_column("Title",   style="white",       max_width=44)
-    t.add_column("Type",    style="#0099ff",      width=13)
+    t.add_column("Type",    style="#ff8a00",      width=13)
     t.add_column("Quality", style="orange1",      width=16)
     t.add_column("Status",  justify="center",     width=8)
 
@@ -819,7 +819,7 @@ def settings_menu() -> None:
             padding=(0, 2), show_edge=False,
         )
         t.add_column(style="bold orange1", no_wrap=True, width=8)
-        t.add_column(style="#0099ff",      width=22)
+        t.add_column(style="#ff8a00",      width=22)
         t.add_column(style="white")
 
         t.add_row("[ 1 ]", "Plex base path",    cfg["plex_base"])
@@ -834,11 +834,11 @@ def settings_menu() -> None:
         t.add_row()
         t.add_row("[ B ]", "Back / Save",        "")
 
-        console.print(Panel(t, title="[bold #0099ff]  CONFIGURATION  [/bold #0099ff]",
-                            border_style="#0066cc", padding=(1, 2)))
+        console.print(Panel(t, title="[bold #ff8a00]  CONFIGURATION  [/bold #ff8a00]",
+                            border_style="#cc5a00", padding=(1, 2)))
         console.print()
 
-        ch = ask("  [bold #0099ff]Select[/bold #0099ff]", default="B").strip().upper()
+        ch = ask("  [bold #ff8a00]Select[/bold #ff8a00]", default="B").strip().upper()
 
         if   ch == "1": cfg["plex_base"]       = ask("  Plex base path",    default=cfg["plex_base"])
         elif ch == "2": cfg["movies_dir"]       = ask("  Movies folder",     default=cfg["movies_dir"])
@@ -863,7 +863,7 @@ def update_ytdlp() -> None:
     header()
     rule("  UPDATE yt-dlp  ")
     console.print()
-    with console.status("[#0099ff]Updating yt-dlp via pip...[/#0099ff]", spinner="dots"):
+    with console.status("[#ff8a00]Updating yt-dlp via pip...[/#ff8a00]", spinner="dots"):
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", "yt-dlp"],
             capture_output=True, text=True,
@@ -892,7 +892,7 @@ def show_sites() -> None:
     t = Table(show_header=False, box=box.SIMPLE, border_style="#003388 dim",
               padding=(0, 3), show_edge=False)
     for _ in range(cols):
-        t.add_column(style="#0099ff", no_wrap=True)
+        t.add_column(style="#ff8a00", no_wrap=True)
 
     for r in range(rows):
         row_items = []
@@ -907,7 +907,7 @@ def show_sites() -> None:
 
     console.print(t)
     console.print()
-    info("yt-dlp supports 1000+ sites. Full list: [#0099ff]yt-dlp --list-extractors[/#0099ff]")
+    info("yt-dlp supports 1000+ sites. Full list: [#ff8a00]yt-dlp --list-extractors[/#ff8a00]")
     pause()
 
 # ── Signal handler ────────────────────────────────────────────────────────────
@@ -948,6 +948,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
