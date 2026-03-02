@@ -17,7 +17,7 @@
                        vibecoded by spitmux
 ```
 
-Terminal-based video downloader for Debian 13 servers running Plex.
+Terminal-based video downloader for Debian/Ubuntu servers running Plex.
 Supports **YouTube, Odysee, Vimeo, Twitch, TikTok, Twitter/X, Rumble** and 1000+ sites via **yt-dlp**.
 
 ---
@@ -212,7 +212,7 @@ Edit via the Settings menu (`tubevault` → option **4**) or directly in the fil
 
 ## Features
 
-- **Rich TUI** — blue-to-orange colour scheme, animated logo on startup, progress bars, spinners
+- **Rich TUI** — orange colour scheme, animated logo on startup, progress bars, spinners
 - **Video info preview** — title, uploader, duration, views before download
 - **Plex-ready naming** — correct folder/filename conventions for Movies and TV
 - **Description as Plex summary** — writes a `.nfo` file alongside each video so the description appears as the summary in Plex
@@ -287,3 +287,4 @@ sudo rm -rf /opt/tubevault
 sudo rm /usr/local/bin/tubevault
 rm -rf ~/.config/tubevault
 ```
+

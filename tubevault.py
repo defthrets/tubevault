@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TubeVault - Terminal Video Downloader for Plex
+TubeVault - Terminal Video Downloader for Plex servers
 Supports YouTube, Odysee, Vimeo, Twitch, TikTok, and 1000+ sites via yt-dlp
 """
 
@@ -85,7 +85,7 @@ LOGO_GRADIENT = [
 _first_header = True
 
 DEFAULT_CFG: dict = {
-    "plex_base":       "/mnt/plex",
+    "plex_base":       "/srv/media",
     "movies_dir":      "Movies",
     "tv_dir":          "TV Shows",
     "youtube_dir":     "YouTube",
@@ -928,6 +928,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
