@@ -101,10 +101,10 @@ sep
 echo ""
 echo -e "  ${BOLD}Plex Media Directory Setup${RESET}"
 echo ""
-info "Default path is /mnt/plex — change this to match your Plex library."
+info "Default path is /srv/media — change this to match your Plex library."
 echo ""
-read -rp "  Plex media base path [/mnt/plex]: " PLEX_PATH
-PLEX_PATH="${PLEX_PATH:-/mnt/plex}"
+read -rp "  Plex media base path [/srv/media]: " PLEX_PATH
+PLEX_PATH="${PLEX_PATH:-/srv/media}"
 
 for d in "Movies" "TV Shows" "YouTube"; do
     mkdir -p "$PLEX_PATH/$d"
@@ -155,6 +155,7 @@ echo -e "  ${BOLD}yt-dlp version:${RESET}"
 echo ""
 sep
 echo ""
+
 
 
 
