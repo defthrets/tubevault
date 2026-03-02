@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ╔══════════════════════════════════════════════════════════════╗
-# ║          VidGrab Installer  ·  Debian 13 / Ubuntu           ║
+# ║          TubeVault Installer  ·  Debian 13 / Ubuntu           ║
 # ╚══════════════════════════════════════════════════════════════╝
 
 set -euo pipefail
@@ -45,8 +45,8 @@ if [[ "$EUID" -ne 0 ]]; then
     exec sudo bash "$0" "$@"
 fi
 
-INSTALL_DIR="/opt/vidgrab"
-BIN_LINK="/usr/local/bin/vidgrab"
+INSTALL_DIR="/opt/tubevault"
+BIN_LINK="/usr/local/bin/tubevault"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── System packages ───────────────────────────────────────────────────────────
@@ -80,19 +80,19 @@ ok "Python packages installed."
 echo ""
 
 # ── Install script ────────────────────────────────────────────────────────────
-info "Copying vidgrab.py to $INSTALL_DIR..."
-cp "$SCRIPT_DIR/vidgrab.py" "$INSTALL_DIR/vidgrab.py"
-chmod 644 "$INSTALL_DIR/vidgrab.py"
+info "Copying tubevault.py to $INSTALL_DIR..."
+cp "$SCRIPT_DIR/tubevault.py" "$INSTALL_DIR/tubevault.py"
+chmod 644 "$INSTALL_DIR/tubevault.py"
 
 # Create wrapper launcher
-cat > "$INSTALL_DIR/vidgrab" << 'WRAPPER'
+cat > "$INSTALL_DIR/tubevault" << 'WRAPPER'
 #!/usr/bin/env bash
-exec /opt/vidgrab/venv/bin/python /opt/vidgrab/vidgrab.py "$@"
+exec /opt/tubevault/venv/bin/python /opt/tubevault/tubevault.py "$@"
 WRAPPER
-chmod +x "$INSTALL_DIR/vidgrab"
+chmod +x "$INSTALL_DIR/tubevault"
 
 # Global symlink
-ln -sf "$INSTALL_DIR/vidgrab" "$BIN_LINK"
+ln -sf "$INSTALL_DIR/tubevault" "$BIN_LINK"
 ok "Installed: $BIN_LINK"
 echo ""
 
@@ -115,7 +115,7 @@ echo ""
 # ── Write default config ──────────────────────────────────────────────────────
 # Write config for root and for the actual user who ran sudo
 write_config() {
-    local CONFIG_DIR="$1/.config/vidgrab"
+    local CONFIG_DIR="$1/.config/tubevault"
     mkdir -p "$CONFIG_DIR"
     cat > "$CONFIG_DIR/config.json" << CONFIG
 {
@@ -138,7 +138,7 @@ if [[ -n "${SUDO_USER:-}" ]]; then
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
     if [[ -n "$REAL_HOME" && "$REAL_HOME" != "$HOME" ]]; then
         write_config "$REAL_HOME"
-        chown -R "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/vidgrab"
+        chown -R "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/tubevault"
     fi
 fi
 
@@ -147,11 +147,15 @@ sep
 echo ""
 echo -e "  ${GREEN}${BOLD}Installation complete!${RESET}"
 echo ""
-echo -e "  Run:   ${CYAN}${BOLD}vidgrab${RESET}"
-echo -e "  URL:   ${CYAN}${BOLD}vidgrab 'https://youtube.com/watch?v=...'${RESET}"
+echo -e "  Run:   ${CYAN}${BOLD}tubevault${RESET}"
+echo -e "  URL:   ${CYAN}${BOLD}tubevault 'https://youtube.com/watch?v=...'${RESET}"
 echo ""
 echo -e "  ${BOLD}yt-dlp version:${RESET}"
 "$INSTALL_DIR/venv/bin/python" -c "import yt_dlp; print('  ' + yt_dlp.version.__version__)"
 echo ""
 sep
 echo ""
+
+
+
+
