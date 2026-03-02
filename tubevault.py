@@ -9,6 +9,7 @@ import sys
 import json
 import re
 import time
+import shutil
 import signal
 import random
 import threading
@@ -82,13 +83,13 @@ LOGO_GRADIENT = [
     "#ff8a00",
 ]
 
-_first_header = True
 
 DEFAULT_CFG: dict = {
     "plex_base":       "/srv/media",
     "movies_dir":      "Movies",
     "tv_dir":          "TV Shows",
     "youtube_dir":     "YouTube",
+    "default_quality": "3",    # 1080p
     "prefer_mp4":      True,
     "embed_subs":      True,
     "embed_thumbnail": True,
@@ -148,8 +149,13 @@ def load_cfg() -> dict:
     return DEFAULT_CFG.copy()
 
 def save_cfg(cfg: dict) -> None:
-    APP_DIR.mkdir(parents=True, exist_ok=True)
-    CFG_FILE.write_text(json.dumps(cfg, indent=2))
+    try:
+        APP_DIR.mkdir(parents=True, exist_ok=True)
+        CFG_FILE.write_text(json.dumps(cfg, indent=2))
+    except PermissionError:
+        err("Cannot save settings — permission denied on config file.")
+    except Exception as e:
+        err(f"Cannot save settings: {e}")
 
 # ── History helpers ───────────────────────────────────────────────────────────
 def load_hist() -> list:
@@ -161,9 +167,12 @@ def load_hist() -> list:
     return []
 
 def push_hist(entry: dict) -> None:
-    hist = load_hist()
-    hist.insert(0, entry)
-    HIST_FILE.write_text(json.dumps(hist[:200], indent=2))
+    try:
+        hist = load_hist()
+        hist.insert(0, entry)
+        HIST_FILE.write_text(json.dumps(hist[:200], indent=2))
+    except Exception as e:
+        warn(f"Could not save download history: {e}")
 
 # ── UI helpers ────────────────────────────────────────────────────────────────
 def clr() -> None:
@@ -182,6 +191,7 @@ LOGO_HEIGHT = len(LOGO_LINES)
 _anim_thread: Optional[threading.Thread] = None
 _anim_stop = threading.Event()
 _anim_pause = threading.Event()
+_anim_pause.set()          # Start paused — only animate during input prompts
 _anim_lock = threading.Lock()
 
 def _glitch_logo_frame(frame: int) -> Text:
@@ -242,7 +252,6 @@ def _start_anim() -> None:
     if _anim_thread and _anim_thread.is_alive():
         return
     _anim_stop.clear()
-    _anim_pause.clear()
     _anim_thread = threading.Thread(target=_anim_loop, daemon=True)
     _anim_thread.start()
 
@@ -252,28 +261,36 @@ def _pause_anim() -> None:
 def _resume_anim() -> None:
     _anim_pause.clear()
 
+def _print_logo_static() -> None:
+    """Render the logo once as a clean static frame (no glitch, no thread)."""
+    text = Text()
+    for raw in LOGO_LINES:
+        for ch in raw:
+            if ch.strip():
+                text.append(ch, style="#ff8a00")
+            else:
+                text.append(ch)
+        text.append("\n")
+    console.print(text, end="")
+
 def ask(*args, **kwargs):
-    _pause_anim()
+    _resume_anim()           # Let logo animate while user reads the prompt
     try:
         return Prompt.ask(*args, **kwargs)
     finally:
-        _resume_anim()
+        _pause_anim()        # Freeze once input is received
 
 def confirm(*args, **kwargs):
-    _pause_anim()
+    _resume_anim()
     try:
         return Confirm.ask(*args, **kwargs)
     finally:
-        _resume_anim()
+        _pause_anim()
 
 def header() -> None:
-    global _first_header
     clr()
-    if _first_header:
-        _first_header = False
-    _start_anim()
-    # Reserve space below the animated logo
-    console.print("\n" * (LOGO_HEIGHT + 1), end="")
+    _start_anim()              # Ensure animation thread exists (starts paused)
+    _print_logo_static()       # Draw logo now; animation overrides it during prompts
     console.print(Align.center("[dim]vibecoded by spitmux[/dim]"))
     console.print()
     console.print(
@@ -295,6 +312,19 @@ def ok(msg: str)   -> None: console.print(f"  [bold orange1]✔[/bold orange1]  
 def err(msg: str)  -> None: console.print(f"  [bold orange3]✖[/bold orange3]  {msg}")
 def info(msg: str) -> None: console.print(f"  [bold #ff8a00]ℹ[/bold #ff8a00]  {msg}")
 def warn(msg: str) -> None: console.print(f"  [bold orange3]⚠[/bold orange3]  {msg}")
+
+def _safe_mkdir(path: Path) -> bool:
+    """Create directory tree. Returns False and shows a helpful message on failure."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return True
+    except PermissionError:
+        err(f"Permission denied: cannot create [bold]{path}[/bold]")
+        warn(f"Fix with:  [bold]sudo chown -R $USER:$USER {path.parent}[/bold]")
+        return False
+    except OSError as e:
+        err(f"Cannot create directory [bold]{path}[/bold]: {e}")
+        return False
 
 def pause() -> None:
     console.print()
@@ -440,8 +470,9 @@ def show_info(info: dict) -> None:
         console.print(Panel(t, title="[bold orange1]  VIDEO INFO  [/bold orange1]", border_style="orange3"))
 
 # ── Quality selection ─────────────────────────────────────────────────────────
-def quality_menu() -> tuple:
+def quality_menu(cfg: Optional[dict] = None) -> tuple:
     """Returns (label, format_string, audio_only)."""
+    default_q = (cfg or {}).get("default_quality", "3")
     t = Table(
         show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
         padding=(0, 2), show_edge=False,
@@ -449,20 +480,21 @@ def quality_menu() -> tuple:
     t.add_column(style="bold orange1", no_wrap=True)
     t.add_column(style="white")
     for k, (label, _, _) in QUALITIES.items():
-        t.add_row(f"[ {k} ]", label)
+        marker = "  [dim](default)[/dim]" if k == default_q else ""
+        t.add_row(f"[ {k} ]", label + marker)
     console.print(Panel(
         t, title="[bold #ff8a00]  SELECT QUALITY  [/bold #ff8a00]",
         border_style="#cc5a00", padding=(0, 4),
     ))
     console.print()
-    ch = ask("  [bold #ff8a00]Quality[/bold #ff8a00]", default="3").strip()
-    return QUALITIES.get(ch, QUALITIES["3"])
+    ch = ask("  [bold #ff8a00]Quality[/bold #ff8a00]", default=default_q).strip()
+    return QUALITIES.get(ch, QUALITIES[default_q])
 
 # ── Output path builder ───────────────────────────────────────────────────────
-def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tuple:
-    """Prompt for content type and return (output_template, content_type)."""
-    base     = Path(cfg["plex_base"])
-    is_pl    = (info or {}).get("_type") == "playlist"
+def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> Optional[tuple]:
+    """Prompt for content type and return (output_template, content_type) or None on error."""
+    base  = Path(cfg["plex_base"])
+    is_pl = (info or {}).get("_type") == "playlist"
 
     t = Table(
         show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
@@ -486,19 +518,25 @@ def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tupl
         s = safe_name(movie_title)
         folder = f"{s} ({year})" if year else s
         out_dir = base / cfg["movies_dir"] / folder
-        out_dir.mkdir(parents=True, exist_ok=True)
+        if not _safe_mkdir(out_dir):
+            return None
         template = str(out_dir / f"{folder}.%(ext)s")
 
     elif ctype == "TV Show":
         show   = ask("  [bold #ff8a00]Show name[/bold #ff8a00]")
         season = ask("  [bold #ff8a00]Season number[/bold #ff8a00]", default="1")
         ep_num = ask("  [bold #ff8a00]Starting episode number[/bold #ff8a00]", default="1")
-        s      = safe_name(show)
-        sn     = int(season)
-        en     = int(ep_num)
+        s = safe_name(show)
+        try:
+            sn = int(season)
+            en = int(ep_num)
+        except ValueError:
+            err("Season and episode must be numbers — defaulting to S01E01.")
+            sn, en = 1, 1
         season_folder = f"Season {sn:02d}"
         out_dir = base / cfg["tv_dir"] / s / season_folder
-        out_dir.mkdir(parents=True, exist_ok=True)
+        if not _safe_mkdir(out_dir):
+            return None
         if is_pl:
             template = str(out_dir / f"{s} - S{sn:02d}E%(autonumber)s.%(ext)s")
         else:
@@ -512,7 +550,8 @@ def build_output_path(cfg: dict, info: Optional[dict], audio_only: bool) -> tupl
         )
         s = safe_name(str(uploader)) or "Unknown"
         out_dir = base / cfg["youtube_dir"] / s
-        out_dir.mkdir(parents=True, exist_ok=True)
+        if not _safe_mkdir(out_dir):
+            return None
         template = str(out_dir / "%(title)s.%(ext)s")
 
     return template, ctype
@@ -607,6 +646,11 @@ def do_download(url: str, cfg: dict, fmt: str, template: str,
             ydl.download([url])
         rp.stop()
         return True
+    except PermissionError:
+        rp.stop()
+        err("Permission denied — cannot write to the output directory.")
+        warn(f"Fix with:  [bold]sudo chown -R $USER:$USER {Path(template).parent.parent}[/bold]")
+        return False
     except yt_dlp.utils.DownloadError as e:
         rp.stop()
         err(f"Download error: {escape(str(e)[:200])}")
@@ -640,10 +684,14 @@ def download_flow(cfg: dict, url: Optional[str] = None) -> None:
     show_info(meta)
     console.print()
 
-    ql, fmt, audio_only = quality_menu()
+    ql, fmt, audio_only = quality_menu(cfg)
     console.print()
 
-    template, ctype = build_output_path(cfg, meta, audio_only)
+    result = build_output_path(cfg, meta, audio_only)
+    if result is None:
+        pause()
+        return
+    template, ctype = result
     console.print()
 
     # Confirmation panel
@@ -718,11 +766,15 @@ def batch_flow(cfg: dict) -> None:
     info(f"Found {len(urls)} URL(s).")
     console.print()
 
-    ql, fmt, audio_only = quality_menu()
+    ql, fmt, audio_only = quality_menu(cfg)
     console.print()
 
     info("Output path applies to all downloads in this batch.")
-    template, ctype = build_output_path(cfg, None, audio_only)
+    result = build_output_path(cfg, None, audio_only)
+    if result is None:
+        pause()
+        return
+    template, ctype = result
     console.print()
 
     if not confirm(f"  [bold #ff8a00]Download {len(urls)} video(s)?[/bold #ff8a00]", default=True):
@@ -802,10 +854,12 @@ def settings_menu() -> None:
         t.add_column(style="#ff8a00",      width=22)
         t.add_column(style="white")
 
+        dq_label = QUALITIES.get(cfg.get("default_quality", "3"), QUALITIES["3"])[0]
         t.add_row("[ 1 ]", "Plex base path",    cfg["plex_base"])
         t.add_row("[ 2 ]", "Movies folder",     cfg["movies_dir"])
         t.add_row("[ 3 ]", "TV Shows folder",   cfg["tv_dir"])
         t.add_row("[ 4 ]", "YouTube folder",    cfg["youtube_dir"])
+        t.add_row("[ D ]", "Default quality",   dq_label)
         t.add_row("[ 5 ]", "Prefer MP4",          "[orange1]Yes[/orange1]" if cfg["prefer_mp4"]       else "[orange3]No[/orange3]")
         t.add_row("[ 6 ]", "Embed subtitles",    "[orange1]Yes[/orange1]" if cfg["embed_subs"]        else "[orange3]No[/orange3]")
         t.add_row("[ 7 ]", "Embed thumbnail",    "[orange1]Yes[/orange1]" if cfg["embed_thumbnail"]   else "[orange3]No[/orange3]")
@@ -824,6 +878,14 @@ def settings_menu() -> None:
         elif ch == "2": cfg["movies_dir"]       = ask("  Movies folder",     default=cfg["movies_dir"])
         elif ch == "3": cfg["tv_dir"]           = ask("  TV Shows folder",   default=cfg["tv_dir"])
         elif ch == "4": cfg["youtube_dir"]      = ask("  YouTube folder",    default=cfg["youtube_dir"])
+        elif ch == "D":
+            console.print()
+            _q = ask("  Default quality (1-7)", default=cfg.get("default_quality", "3")).strip()
+            if _q in QUALITIES:
+                cfg["default_quality"] = _q
+                ok(f"Default quality set to: [bold orange1]{QUALITIES[_q][0]}[/bold orange1]")
+            else:
+                warn("Invalid choice — not changed.")
         elif ch == "5": cfg["prefer_mp4"]       = confirm("  Prefer MP4?",      default=cfg["prefer_mp4"])
         elif ch == "6": cfg["embed_subs"]       = confirm("  Embed subtitles?", default=cfg["embed_subs"])
         elif ch == "7": cfg["embed_thumbnail"]  = confirm("  Embed thumbnail?",       default=cfg["embed_thumbnail"])
@@ -890,6 +952,208 @@ def show_sites() -> None:
     info("yt-dlp supports 1000+ sites. Full list: [#ff8a00]yt-dlp --list-extractors[/#ff8a00]")
     pause()
 
+# ── First-run setup wizard ────────────────────────────────────────────────────
+def setup_wizard() -> dict:
+    """Interactive first-run setup. Returns the completed config dict."""
+    cfg = DEFAULT_CFG.copy()
+
+    # ── Welcome ────────────────────────────────────────────────────────────────
+    header()
+    rule("  FIRST-RUN SETUP  ")
+    console.print()
+    console.print(Panel(
+        Align.center(
+            "[bold #ff8a00]Welcome to TubeVault![/bold #ff8a00]\n\n"
+            "[white]This one-time wizard will get you up and running.[/white]\n\n"
+            "[dim]  •  Set your Plex media folder path\n"
+            "  •  Create required directories & verify permissions\n"
+            "  •  Choose your default quality and metadata options\n"
+            "  •  Check that system dependencies are installed\n\n"
+            "Everything can be changed later via  [bold orange1][ 4 ] Settings[/bold orange1][/dim]"
+        ),
+        border_style="#cc5a00",
+        padding=(1, 4),
+    ))
+    console.print()
+    if not confirm("  [bold #ff8a00]Start setup?[/bold #ff8a00]", default=True):
+        warn("Skipping wizard — launching with default settings.")
+        save_cfg(cfg)
+        return cfg
+
+    # ── Step 1: Media paths ────────────────────────────────────────────────────
+    while True:
+        header()
+        rule("  STEP 1 / 4  ·  MEDIA PATHS  ")
+        console.print()
+        info("Where should TubeVault save downloaded media?")
+        info("This should be the root of your Plex media library.\n")
+
+        plex_base   = ask("  [bold #ff8a00]Plex base path[/bold #ff8a00]",
+                          default=cfg["plex_base"]).strip() or cfg["plex_base"]
+        movies_dir  = ask("  [bold #ff8a00]Movies folder name[/bold #ff8a00]",
+                          default=cfg["movies_dir"]).strip()  or cfg["movies_dir"]
+        tv_dir      = ask("  [bold #ff8a00]TV Shows folder name[/bold #ff8a00]",
+                          default=cfg["tv_dir"]).strip()      or cfg["tv_dir"]
+        youtube_dir = ask("  [bold #ff8a00]YouTube folder name[/bold #ff8a00]",
+                          default=cfg["youtube_dir"]).strip() or cfg["youtube_dir"]
+
+        console.print()
+        rule("  CHECKING PERMISSIONS  ")
+        console.print()
+
+        base    = Path(plex_base)
+        all_ok  = True
+        for sub in [movies_dir, tv_dir, youtube_dir]:
+            path = base / sub
+            if _safe_mkdir(path):
+                ok(f"Ready  →  [dim]{path}[/dim]")
+            else:
+                all_ok = False
+        console.print()
+
+        if all_ok:
+            ok("All directories are ready.")
+            cfg.update(plex_base=plex_base, movies_dir=movies_dir,
+                       tv_dir=tv_dir, youtube_dir=youtube_dir)
+            pause()
+            break
+
+        warn("Some directories could not be created (see errors above).")
+        console.print()
+        ch = ask(
+            "  [[bold orange1]R[/bold orange1]]etry  "
+            "[[bold orange1]C[/bold orange1]]ontinue anyway  "
+            "[[bold orange1]Q[/bold orange1]]uit",
+            default="R"
+        ).strip().upper()
+
+        if ch == "Q":
+            warn("Setup aborted — using default settings.")
+            save_cfg(DEFAULT_CFG.copy())
+            return DEFAULT_CFG.copy()
+        cfg.update(plex_base=plex_base, movies_dir=movies_dir,
+                   tv_dir=tv_dir, youtube_dir=youtube_dir)
+        if ch != "R":  # C or anything else = continue anyway
+            warn("Continuing with unverified paths. Fix permissions before downloading.")
+            pause()
+            break
+        # R → loop back and ask again
+
+    # ── Step 2: Quality & container ───────────────────────────────────────────
+    header()
+    rule("  STEP 2 / 4  ·  DEFAULT QUALITY  ")
+    console.print()
+    info("Choose your default download quality (can be overridden each time).")
+    console.print()
+
+    qt = Table(show_header=False, box=box.SIMPLE, border_style="#7a3000 dim",
+               padding=(0, 2), show_edge=False)
+    qt.add_column(style="bold orange1", no_wrap=True)
+    qt.add_column(style="white")
+    for k, (label, _, _) in QUALITIES.items():
+        qt.add_row(f"[ {k} ]", label)
+    console.print(Panel(qt, title="[bold #ff8a00]  QUALITY  [/bold #ff8a00]",
+                        border_style="#cc5a00", padding=(0, 4)))
+    console.print()
+
+    q_ch = ask("  [bold #ff8a00]Default quality[/bold #ff8a00]",
+               default=cfg["default_quality"]).strip()
+    cfg["default_quality"] = q_ch if q_ch in QUALITIES else "3"
+    ok(f"Default quality: [bold orange1]{QUALITIES[cfg['default_quality']][0]}[/bold orange1]")
+    console.print()
+
+    cfg["prefer_mp4"] = confirm(
+        "  [bold #ff8a00]Prefer MP4 container?[/bold #ff8a00]  "
+        "[dim](recommended — best Plex compatibility)[/dim]",
+        default=cfg["prefer_mp4"]
+    )
+    pause()
+
+    # ── Step 3: Metadata & extras ─────────────────────────────────────────────
+    header()
+    rule("  STEP 3 / 4  ·  METADATA & EXTRAS  ")
+    console.print()
+    info("Configure what extra data gets embedded with each download.\n")
+
+    cfg["embed_subs"]      = confirm(
+        "  [bold #ff8a00]Embed subtitles (English)?[/bold #ff8a00]",
+        default=cfg["embed_subs"])
+    cfg["embed_thumbnail"] = confirm(
+        "  [bold #ff8a00]Embed thumbnail into file?[/bold #ff8a00]",
+        default=cfg["embed_thumbnail"])
+    cfg["write_nfo"]       = confirm(
+        "  [bold #ff8a00]Write .nfo file?[/bold #ff8a00]  "
+        "[dim](lets Plex show the video description as a plot summary)[/dim]",
+        default=cfg["write_nfo"])
+    cfg["embed_metadata"]  = confirm(
+        "  [bold #ff8a00]Embed metadata tags?[/bold #ff8a00]  "
+        "[dim](title, uploader, date baked into the file)[/dim]",
+        default=cfg["embed_metadata"])
+    pause()
+
+    # ── Step 4: Dependency check ──────────────────────────────────────────────
+    header()
+    rule("  STEP 4 / 4  ·  SYSTEM CHECK  ")
+    console.print()
+
+    deps_ok = True
+    for cmd, purpose in [
+        ("ffmpeg",        "merge video+audio, embed subs & thumbnails"),
+        ("atomicparsley", "embed thumbnails into MP4 files"),
+    ]:
+        if shutil.which(cmd):
+            ok(f"[bold]{cmd}[/bold]  [dim]{purpose}[/dim]")
+        else:
+            err(f"[bold]{cmd}[/bold] not found  [dim]{purpose}[/dim]")
+            warn(f"Install with:  [bold]sudo apt install {cmd}[/bold]")
+            deps_ok = False
+        console.print()
+
+    try:
+        ver = yt_dlp.version.__version__
+        ok(f"[bold]yt-dlp[/bold]  [dim]v{ver}[/dim]")
+    except Exception:
+        warn("[bold]yt-dlp[/bold] version could not be determined.")
+    console.print()
+
+    if not deps_ok:
+        warn("Missing dependencies — some features may not work.")
+        info("Re-run the installer to fix:  [bold]sudo ./install.sh[/bold]")
+        console.print()
+    else:
+        ok("All dependencies found.")
+        console.print()
+
+    pause()
+
+    # ── Save & summary ────────────────────────────────────────────────────────
+    save_cfg(cfg)
+
+    header()
+    rule("  SETUP COMPLETE  ")
+    console.print()
+
+    st = Table(show_header=False, box=box.SIMPLE, border_style="dim", padding=(0, 1))
+    st.add_column(style="bold #ff8a00", width=22, no_wrap=True)
+    st.add_column(style="white")
+    st.add_row("Plex base path",  cfg["plex_base"])
+    st.add_row("Movies folder",   cfg["movies_dir"])
+    st.add_row("TV Shows folder", cfg["tv_dir"])
+    st.add_row("YouTube folder",  cfg["youtube_dir"])
+    st.add_row("Default quality", QUALITIES[cfg["default_quality"]][0])
+    st.add_row("Prefer MP4",      "Yes" if cfg["prefer_mp4"]      else "No")
+    st.add_row("Embed subtitles", "Yes" if cfg["embed_subs"]       else "No")
+    st.add_row("Embed thumbnail", "Yes" if cfg["embed_thumbnail"]  else "No")
+    st.add_row("Write NFO",       "Yes" if cfg["write_nfo"]        else "No")
+    st.add_row("Embed metadata",  "Yes" if cfg["embed_metadata"]   else "No")
+    console.print(Panel(st, title="[bold #ff8a00]  YOUR SETTINGS  [/bold #ff8a00]",
+                        border_style="#cc5a00", padding=(1, 2)))
+    console.print()
+    ok(f"Config saved  →  [dim]{CFG_FILE}[/dim]")
+    console.print()
+    time.sleep(1.0)
+    return cfg
+
 # ── Signal handler ────────────────────────────────────────────────────────────
 def _sig_handler(sig, frame) -> None:
     console.print("\n\n  [bold orange1]Interrupted. Goodbye![/bold orange1]\n")
@@ -899,7 +1163,11 @@ signal.signal(signal.SIGINT, _sig_handler)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 def main() -> None:
-    cfg = load_cfg()
+    # First run: no config file yet → launch setup wizard
+    if not CFG_FILE.exists():
+        cfg = setup_wizard()
+    else:
+        cfg = load_cfg()
 
     # Handle URL passed as CLI argument
     if len(sys.argv) > 1:

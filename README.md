@@ -183,6 +183,33 @@ Home Video libraries are hidden by default:
 
 ---
 
+## Overseerr / Jellyseerr Setup
+
+Overseerr and Jellyseerr discover media by scanning your **Plex libraries**, so they need to see the same folders TubeVault writes to.
+
+### Point Overseerr at your TubeVault libraries
+
+1. In Overseerr → **Settings → Plex** → **Sync Libraries**
+2. Enable the libraries that correspond to your TubeVault folders:
+
+| TubeVault folder | Plex library to enable in Overseerr |
+|------------------|--------------------------------------|
+| `Movies/`        | your **Movies** library              |
+| `TV Shows/`      | your **TV Shows** library            |
+| `YouTube/`       | your **Home Videos** library         |
+
+3. Click **Start Sync** (or wait for the scheduled sync)
+
+> ⚠️ If Plex is in Docker, Overseerr must also have the same media paths mounted or reachable — the paths must match what Plex reports to Overseerr.
+
+### If downloads aren't appearing in Overseerr
+
+1. **Trigger a Plex library scan first** — Overseerr only knows about content that Plex has already indexed. In Plex → your library → **⋮ → Scan Library Files**
+2. **Then sync Overseerr** — Settings → Plex → **Start Sync**
+3. Check that the TubeVault `plex_base` path matches a volume that is actually mounted into your Plex container (see Docker section above)
+
+---
+
 ## Configuration
 
 Config file: `~/.config/tubevault/config.json`
