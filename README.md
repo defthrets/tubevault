@@ -1,21 +1,18 @@
-# VidGrab — Terminal Video Downloader for Plex
+# TubeVault — Terminal Video Downloader for Plex
 
 ```
-   _            .       ..                                                  ..
-  u            @88>   dF                                              . uW8"
- 88Nu.   u.    %8P   '88bu.                     .u    .               `t888
-'88888.o888c    .    '*88888bu        uL      .d88B :@8c        u      8888   .
- ^8888  8888  .@88u    ^"*8888N   .ue888Nc.. ="8888f8888r    us888u.   9888.z88N
-  8888  8888 ''888E`  beWE "888L d88E`"888E`   4888>'88"  .@88 "8888"  9888  888E
-  8888  8888   888E   888E  888E 888E  888E    4888> '    9888  9888   9888  888E
-  8888  8888   888E   888E  888E 888E  888E    4888>      9888  9888   9888  888E
- .8888b.888P   888E   888E  888F 888E  888E   .d888L .+   9888  9888   9888  888E
-  ^Y8888*""    888&  .888N..888  888& .888E   ^"8888*"    9888  9888  .8888  888"
-    `Y"        R888"  `"888*""   *888" 888&      "Y"      "888*""888"  `%888*%"
-                ""       ""       `"   "888E               ^Y"   ^Y'      "`
-                                 .dWi   `88E
-                                 4888~  J8%
-                                  ^"===*"`
+     s                         ..                    _                                          ..      s    
+    :8                   . uW8"                     u                                     x .d88"      :8    
+   .88       x.    .     `t888                     88Nu.   u.                 x.    .      5888R      .88    
+  :888ooo  .@88k  z88u    8888   .        .u      '88888.o888c       u      .@88k  z88u    '888R     :888ooo 
+-*8888888 ~"8888 ^8888    9888.z88N    ud8888.     ^8888  8888    us888u.  ~"8888 ^8888     888R   -*8888888 
+  8888      8888  888R    9888  888E :888'8888.     8888  8888 .@88 "8888"   8888  888R     888R     8888    
+  8888      8888  888R    9888  888E d888 '88%"     8888  8888 9888  9888    8888  888R     888R     8888    
+  8888      8888  888R    9888  888E 8888.+"        8888  8888 9888  9888    8888  888R     888R     8888    
+ .8888Lu=   8888 ,888B .  9888  888E 8888L         .8888b.888P 9888  9888    8888 ,888B .   888R    .8888Lu= 
+ ^%888*    "8888Y 8888"  .8888  888" '8888c. .+     ^Y8888*""  9888  9888   "8888Y 8888"   .888B .  ^%888*   
+   'Y"      `Y"   'YP     `%888*%"    "88888%         `Y"      "888*""888"   `Y"   'YP     ^*888%     'Y"    
+                             "`         "YP'                    ^Y"   ^Y'                    "%
 
                        vibecoded by spitmux
 ```
@@ -37,15 +34,15 @@ Supports **YouTube, Odysee, Vimeo, Twitch, TikTok, Twitter/X, Rumble** and 1000+
 ## Installation
 
 ```bash
-git clone <repo> vidgrab
-cd vidgrab
+git clone <repo> tubevault
+cd tubevault
 chmod +x install.sh
 sudo ./install.sh
 ```
 
 > ⚠️ **If you downloaded the files on Windows** and are running on Linux, fix line endings first:
 > ```bash
-> sed -i 's/\r//' install.sh vidgrab.py
+> sed -i 's/\r//' install.sh tubevault.py
 > chmod +x install.sh
 > sudo ./install.sh
 > ```
@@ -53,11 +50,11 @@ sudo ./install.sh
 The installer will:
 
 1. Install `python3`, `python3-venv`, `ffmpeg`, `atomicparsley` via apt
-2. Create a virtual environment at `/opt/vidgrab/venv`
+2. Create a virtual environment at `/opt/tubevault/venv`
 3. Install `rich` and `yt-dlp` Python packages
-4. Place a `vidgrab` command in `/usr/local/bin`
+4. Place a `tubevault` command in `/usr/local/bin`
 5. Create your Plex media directories (`Movies`, `TV Shows`, `YouTube`)
-6. Write a default config to `~/.config/vidgrab/config.json`
+6. Write a default config to `~/.config/tubevault/config.json`
 
 ---
 
@@ -65,13 +62,13 @@ The installer will:
 
 ### Interactive menu
 ```bash
-vidgrab
+tubevault
 ```
 
 ### Direct URL (skip menu)
 ```bash
-vidgrab 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-vidgrab 'https://odysee.com/@channel/video-slug'
+tubevault 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+tubevault 'https://odysee.com/@channel/video-slug'
 ```
 
 ### Batch download from file
@@ -84,14 +81,14 @@ https://odysee.com/@mychannel/some-video
 https://vimeo.com/123456789
 EOF
 
-vidgrab   # Select option 2
+tubevault   # Select option 2
 ```
 
 ### Update script on server
 ```bash
 # From Windows:
-scp C:\vidgrab\vidgrab.py user@server:~/vidgrab.py
-ssh -t user@server "sudo mv ~/vidgrab.py /opt/vidgrab/vidgrab.py"
+scp C:\tubevault\tubevault.py user@server:~/tubevault.py
+ssh -t user@server "sudo mv ~/tubevault.py /opt/tubevault/tubevault.py"
 ```
 
 ---
@@ -126,7 +123,7 @@ ssh -t user@server "sudo mv ~/vidgrab.py /opt/vidgrab/vidgrab.py"
 
 ## Plex Folder Structure
 
-VidGrab organises downloads to match Plex's expected library structure:
+TubeVault organises downloads to match Plex's expected library structure:
 
 ```
 /srv/media/
@@ -188,7 +185,7 @@ Home Video libraries are hidden by default:
 
 ## Configuration
 
-Config file: `~/.config/vidgrab/config.json`
+Config file: `~/.config/tubevault/config.json`
 
 ```json
 {
@@ -209,7 +206,7 @@ Config file: `~/.config/vidgrab/config.json`
 | `write_nfo` | `true` | Write a `.nfo` file alongside each video — Plex reads this for the **summary/plot** |
 | `embed_metadata` | `true` | Embed title, description, uploader, date into MP4/MP3 file tags |
 
-Edit via the Settings menu (`vidgrab` → option **4**) or directly in the file.
+Edit via the Settings menu (`tubevault` → option **4**) or directly in the file.
 
 ---
 
@@ -224,7 +221,7 @@ Edit via the Settings menu (`vidgrab` → option **4**) or directly in the file.
 - **Thumbnail embedding** — embeds video thumbnail into MP4/MP3
 - **Download history** — keeps last 200 entries with status
 - **Batch mode** — feed a text file of URLs, one per line
-- **CLI shortcut** — pass URL directly: `vidgrab '<url>'`
+- **CLI shortcut** — pass URL directly: `tubevault '<url>'`
 - **Self-updating** — option 5 upgrades yt-dlp in place
 
 ---
@@ -234,18 +231,18 @@ Edit via the Settings menu (`vidgrab` → option **4**) or directly in the file.
 ### `env: 'bash\r': No such file or directory`
 Windows CRLF line endings. Fix with:
 ```bash
-sed -i 's/\r//' install.sh vidgrab.py
+sed -i 's/\r//' install.sh tubevault.py
 ```
 
 ### `TypeError: TextColumn.__init__() got an unexpected keyword argument 'no_wrap'`
 Older version of `rich` installed. Fix on the server:
 ```bash
 sudo python3 -c "
-f = open('/opt/vidgrab/vidgrab.py', 'r')
+f = open('/opt/tubevault/tubevault.py', 'r')
 t = f.read()
 f.close()
 t = t.replace('TextColumn(\"[bold cyan]{task.description}[/]\", no_wrap=True, table_column=None)', 'TextColumn(\"[bold cyan]{task.description}[/]\")')
-open('/opt/vidgrab/vidgrab.py', 'w').write(t)
+open('/opt/tubevault/tubevault.py', 'w').write(t)
 print('Done.')
 "
 ```
@@ -268,17 +265,17 @@ ps aux | grep plex
 
 ---
 
-## Updating VidGrab
+## Updating TubeVault
 
 **Update yt-dlp** (download engine):
 ```bash
-vidgrab   # Select option 5
+tubevault   # Select option 5
 ```
 
-**Update VidGrab itself** from Windows:
+**Update TubeVault itself** from Windows:
 ```bash
-scp C:\vidgrab\vidgrab.py user@server:~/vidgrab.py
-ssh -t user@server "sudo mv ~/vidgrab.py /opt/vidgrab/vidgrab.py"
+scp C:\tubevault\tubevault.py user@server:~/tubevault.py
+ssh -t user@server "sudo mv ~/tubevault.py /opt/tubevault/tubevault.py"
 ```
 
 ---
@@ -286,7 +283,7 @@ ssh -t user@server "sudo mv ~/vidgrab.py /opt/vidgrab/vidgrab.py"
 ## Uninstall
 
 ```bash
-sudo rm -rf /opt/vidgrab
-sudo rm /usr/local/bin/vidgrab
-rm -rf ~/.config/vidgrab
+sudo rm -rf /opt/tubevault
+sudo rm /usr/local/bin/tubevault
+rm -rf ~/.config/tubevault
 ```

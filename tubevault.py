@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VidGrab - Terminal Video Downloader for Plex
+TubeVault - Terminal Video Downloader for Plex
 Supports YouTube, Odysee, Vimeo, Twitch, TikTok, and 1000+ sites via yt-dlp
 """
 
@@ -58,7 +58,7 @@ console = Console(highlight=False)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 VERSION = "1.0.0"
-APP_DIR  = Path.home() / ".config" / "vidgrab"
+APP_DIR  = Path.home() / ".config" / "tubevault"
 CFG_FILE = APP_DIR / "config.json"
 HIST_FILE = APP_DIR / "history.json"
 
@@ -943,12 +943,14 @@ def main() -> None:
         elif choice == "6": show_sites()
         elif choice in ("Q", "QUIT", "EXIT"):
             header()
-            console.print(Align.center("[bold orange1]Thanks for using VidGrab!  Goodbye.[/bold orange1]"))
+            console.print(Align.center("[bold orange1]Thanks for using TubeVault!  Goodbye.[/bold orange1]"))
             console.print()
             sys.exit(0)
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
