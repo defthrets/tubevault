@@ -34,7 +34,7 @@ Supports **YouTube, Odysee, Vimeo, Twitch, TikTok, Twitter/X, Rumble** and 1000+
 ## Installation
 
 ```bash
-git clone <repo> tubevault
+git clone https://github.com/defthrets/tubevault.git
 cd tubevault
 chmod +x install.sh
 sudo ./install.sh
