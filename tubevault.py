@@ -397,6 +397,8 @@ def main_menu() -> str:
     )
     t.add_column(style="bold orange1", no_wrap=True)
     t.add_column(style="white")
+    t.add_row("[ W ]", "Setup Wizard")
+    t.add_row()
     t.add_row("[ 1 ]", "Download Video or Playlist")
     t.add_row("[ 2 ]", "Batch Download  (from URL list file)")
     t.add_row("[ 3 ]", "View Download History")
@@ -1180,7 +1182,9 @@ def main() -> None:
     while True:
         choice = main_menu()
 
-        if   choice == "1": download_flow(cfg)
+        if   choice == "W":
+            cfg = setup_wizard()
+        elif choice == "1": download_flow(cfg)
         elif choice == "2": batch_flow(cfg)
         elif choice == "3": history_view()
         elif choice == "4":
