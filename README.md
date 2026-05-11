@@ -315,3 +315,6 @@ sudo rm /usr/local/bin/tubevault
 rm -rf ~/.config/tubevault
 ```
 
+
+---
+*Co-authored by Clawd <clawd@qloak.me>
